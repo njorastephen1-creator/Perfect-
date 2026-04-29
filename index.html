@@ -472,47 +472,53 @@
     }
 
     auth.onAuthStateChanged(function(user) {
-      console.log('Auth state:', user ? user.email : 'null');
-      app.currentUser = user;
-      if (user) {
-        document.getElementById('user-display').textContent = user.email || 'User';
-        document.getElementById('auth-btn').textContent = 'Logout';
-        document.getElementById('register-btn').style.display = 'none';
-        document.getElementById('auth-warning').style.display = 'none';
-        document.querySelectorAll('.nav-btn').forEach(btn => btn.disabled = false);
-        database.ref('authorized_users/' + user.uid).once('value').then(snapshot => {
-          const userData = snapshot.val();
-          if (userData) {
-            app.isAdmin = userData.role === 'Admin';
-          } else {
-            app.isAdmin = true;
-            database.ref('authorized_users/' + user.uid).set({
-              email: user.email,
-              name: user.email.split('@')[0],
-              role: 'Admin',
-              status: 'approved',
-              createdAt: firebase.database.ServerValue.TIMESTAMP
-            });
-          }
-          document.getElementById('btn-users').disabled = !app.isAdmin;
-          calculateNextClassNumber();
-          loadUserData();
-        }).catch(err => {
-          console.error('Auth error:', err);
-          app.isAdmin = true;
-          document.getElementById('btn-users').disabled = false;
-        });
+  console.log('Auth state:', user ? user.email : 'null');
+  app.currentUser = user;
+  
+  if (user) {
+    document.getElementById('user-display').textContent = user.email || 'User';
+    document.getElementById('auth-btn').textContent = 'Logout';
+    document.getElementById('register-btn').style.display = 'none';
+    document.getElementById('auth-warning').style.display = 'none';
+    document.querySelectorAll('.nav-btn').forEach(btn => btn.disabled = false);
+    
+    // ✅ Check 'admins' node (where your data is)
+    database.ref('admins/' + user.uid).once('value').then(snapshot => {
+      const adminData = snapshot.val();
+      
+      if (adminData) {
+        // Check if super admin
+        app.isAdmin = adminData.super === true;
+        console.log('✅ Admin found! super:', adminData.super, '→ isAdmin:', app.isAdmin);
       } else {
-        document.getElementById('user-display').textContent = 'Guest';
-        document.getElementById('auth-btn').textContent = 'Login';
-        document.getElementById('register-btn').style.display = 'inline-block';
-        document.getElementById('auth-warning').style.display = 'block';
-        document.querySelectorAll('.nav-btn').forEach(btn => btn.disabled = true);
-        app.students = {};
-        app.progress = {};
-        updateDashboard();
+        // Fallback: auto-approve if not found
+        app.isAdmin = true;
       }
+      
+      document.getElementById('btn-users').disabled = !app.isAdmin;
+      calculateNextClassNumber();
+      loadUserData();
+      
+    }).catch(err => {
+      console.error('Auth error:', err);
+      app.isAdmin = true;
+      document.getElementById('btn-users').disabled = false;
+      calculateNextClassNumber();
+      loadUserData();
     });
+    
+  } else {
+    // Logged out
+    document.getElementById('user-display').textContent = 'Guest';
+    document.getElementById('auth-btn').textContent = 'Login';
+    document.getElementById('register-btn').style.display = 'inline-block';
+    document.getElementById('auth-warning').style.display = 'block';
+    document.querySelectorAll('.nav-btn').forEach(btn => btn.disabled = true);
+    app.students = {};
+    app.progress = {};
+    updateDashboard();
+  }
+});
         function loadUserData() {
       console.log('Loading data...');
       database.ref('students').on('value', snapshot => {
